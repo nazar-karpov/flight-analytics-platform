@@ -1,0 +1,225 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+          "queryType": "sql",
+          "rawSql": "SELECT hour as time, sum(unique_aircraft) as value FROM flights.mart_airport_traffic_hourly FINAL GROUP BY hour ORDER BY hour",
+          "format": 1,
+          "refId": "A",
+          "editorType": "sql"
+        }
+      ],
+      "title": "Самолётов в воздухе по часам (вблизи аэропортов)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "id": 2,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/.*/" },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+          "queryType": "sql",
+          "rawSql": "SELECT sum(aircraft_count) as total FROM flights.mart_region_traffic_current FINAL",
+          "format": 2,
+          "refId": "A",
+          "editorType": "sql"
+        }
+      ],
+      "title": "Всего самолётов в воздухе",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "orange", "value": null }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 4 },
+      "id": 3,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/.*/" },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+          "queryType": "sql",
+          "rawSql": "SELECT count() as anomalies FROM flights.mart_flight_anomalies FINAL WHERE detected_at >= now() - INTERVAL 1 HOUR",
+          "format": 2,
+          "refId": "A",
+          "editorType": "sql"
+        }
+      ],
+      "title": "Аномалий за последний час",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+      "fieldConfig": { "defaults": {} },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 4,
+      "options": {
+        "sortBy": [{ "displayName": "unique_aircraft", "desc": true }],
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+          "queryType": "sql",
+          "rawSql": "SELECT airport_iata as \"Код IATA\", airport_name as \"Аэропорт\", sum(unique_aircraft) as \"Бортов\" FROM flights.mart_airport_traffic_hourly FINAL WHERE hour >= now() - INTERVAL 6 HOUR GROUP BY airport_iata, airport_name ORDER BY \"Бортов\" DESC LIMIT 15",
+          "format": 2,
+          "refId": "A",
+          "editorType": "sql"
+        }
+      ],
+      "title": "Топ аэропортов (последние 6ч)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+      "fieldConfig": { "defaults": {} },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 5,
+      "options": {
+        "sortBy": [{ "displayName": "aircraft_count", "desc": true }],
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+          "queryType": "sql",
+          "rawSql": "SELECT region as \"Регион\", aircraft_count as \"Самолётов\", snapshot_time as \"Время снимка\" FROM flights.mart_region_traffic_current FINAL ORDER BY \"Самолётов\" DESC",
+          "format": 2,
+          "refId": "A",
+          "editorType": "sql"
+        }
+      ],
+      "title": "Трафик по регионам (текущий)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+      "fieldConfig": { "defaults": {} },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 6,
+      "options": {
+        "sortBy": [{ "displayName": "flight_count", "desc": true }],
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+          "queryType": "sql",
+          "rawSql": "SELECT airline_code as \"Авиакомпания\", flight_count as \"Рейсов\", round(avg_altitude) as \"Ср. высота (м)\", round(avg_speed) as \"Ср. скорость (м/с)\", countries as \"Регионов\" FROM flights.mart_airline_stats_daily FINAL WHERE date = today() ORDER BY \"Рейсов\" DESC LIMIT 20",
+          "format": 2,
+          "refId": "A",
+          "editorType": "sql"
+        }
+      ],
+      "title": "Топ авиакомпаний сегодня",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "anomaly_type" },
+            "properties": [
+              { "id": "custom.displayMode", "value": "color-text" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 7,
+      "options": {
+        "sortBy": [{ "displayName": "detected_at", "desc": true }],
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse-flights" },
+          "queryType": "sql",
+          "rawSql": "SELECT icao24 as \"ICAO24\", callsign as \"Позывной\", anomaly_type as \"Тип аномалии\", detected_at as \"Обнаружено\", round(latitude,2) as \"Широта\", round(longitude,2) as \"Долгота\", details as \"Детали\" FROM flights.mart_flight_anomalies FINAL WHERE detected_at >= now() - INTERVAL 24 HOUR ORDER BY \"Обнаружено\" DESC LIMIT 50",
+          "format": 2,
+          "refId": "A",
+          "editorType": "sql"
+        }
+      ],
+      "title": "Аномалии за сутки",
+      "type": "table"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": ["flights", "realtime"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Аналитика авиатрафика",
+  "uid": "flight-analytics-v1",
+  "version": 1
+}

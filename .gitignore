@@ -1,0 +1,30 @@
+# Secrets
+.env
+
+# Claude
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (if mounted locally)
+postgres-data/
+clickhouse-data/
+minio-data/
+
+# Logs
+*.log

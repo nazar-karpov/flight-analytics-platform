@@ -1,0 +1,323 @@
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  build: ./airflow
+  environment:
+    &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: '60'
+    AIRFLOW__WEBSERVER__WORKERS: '1'
+    AIRFLOW__WEBSERVER__WORKER_REFRESH_INTERVAL: '1800'
+    AIRFLOW__SCHEDULER__PARSING_PROCESSES: '1'
+    MINIO_ENDPOINT: http://minio:9000
+    MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+    MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    CLICKHOUSE_HOST: clickhouse
+    CLICKHOUSE_PORT: '8123'
+    CLICKHOUSE_DB: flights
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./seed:/opt/airflow/seed
+    - airflow-logs:/opt/airflow/logs
+    - airflow-plugins:/opt/airflow/plugins
+  depends_on:
+    airflow-postgres:
+      condition: service_healthy
+  networks:
+    - flight-net
+
+services:
+  # ─── Zookeeper ────────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    hostname: zookeeper
+    container_name: zookeeper
+    mem_limit: 512m
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms128m"
+    healthcheck:
+      test: echo srvr | nc localhost 2181 | grep -q Mode
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - flight-net
+
+  # ─── Kafka ────────────────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    hostname: kafka
+    container_name: kafka
+    mem_limit: 1g
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_RETENTION_HOURS: 48
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+    healthcheck:
+      test: kafka-broker-api-versions --bootstrap-server localhost:9092
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks:
+      - flight-net
+
+  # ─── Kafka UI ─────────────────────────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    mem_limit: 384m
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - flight-net
+
+  # ─── MinIO ────────────────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    mem_limit: 512m
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: curl -f http://localhost:9000/minio/health/live
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - flight-net
+
+  # MinIO bucket initializer
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    mem_limit: 128m
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+        mc mb --ignore-existing myminio/stg;
+        mc mb --ignore-existing myminio/dds;
+        mc mb --ignore-existing myminio/scripts;
+        mc anonymous set public myminio/stg;
+        mc anonymous set public myminio/dds;
+        echo 'MinIO buckets ready';
+      "
+    networks:
+      - flight-net
+
+  # ─── Airflow ──────────────────────────────────────────────────────────────────
+  airflow-postgres:
+    image: postgres:16
+    container_name: airflow-postgres
+    mem_limit: 384m
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U airflow
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - flight-net
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    mem_limit: 512m
+    command: >
+      bash -c "
+        airflow db init &&
+        airflow users create --username admin --password admin --firstname Admin --lastname Admin --role Admin --email admin@example.com || true &&
+        echo 'Airflow initialized'
+      "
+    restart: on-failure
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    mem_limit: 2g
+    command: webserver
+    ports:
+      - "8082:8080"
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: curl -f http://localhost:8080/health
+      interval: 30s
+      timeout: 15s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    mem_limit: 1500m
+    environment:
+      <<: *airflow-env
+    command: scheduler
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ─── ClickHouse ───────────────────────────────────────────────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: clickhouse
+    mem_limit: 1g
+    ports:
+      - "8123:8123"
+      - "9002:9000"
+    volumes:
+      - ./clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/default-user.xml
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: wget -q -O- http://localhost:8123/ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - flight-net
+
+  # ─── Grafana ──────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: grafana
+    mem_limit: 256m
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    networks:
+      - flight-net
+
+  # ─── Kafka Producer ───────────────────────────────────────────────────────────
+  kafka-producer:
+    build: ./producer
+    container_name: kafka-producer
+    mem_limit: 256m
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: raw_flight_states
+      POLL_INTERVAL_SECONDS: '10'
+      OPENSKY_USER: ${OPENSKY_USER:-}
+      OPENSKY_PASS: ${OPENSKY_PASS:-}
+    restart: unless-stopped
+    networks:
+      - flight-net
+
+  # ─── Kafka Consumer (STG writer) ──────────────────────────────────────────────
+  spark-streaming:
+    build: ./spark_streaming
+    container_name: spark-streaming
+    mem_limit: 2g
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: raw_flight_states
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    restart: unless-stopped
+    networks:
+      - flight-net
+
+  # ─── AI Agent ─────────────────────────────────────────────────────────────────
+  ai-agent:
+    build: ./agent
+    container_name: ai-agent
+    mem_limit: 256m
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: '8123'
+      CLICKHOUSE_DB: flights
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    restart: unless-stopped
+    networks:
+      - flight-net
+
+# ─── Networks & Volumes ─────────────────────────────────────────────────────────
+networks:
+  flight-net:
+    driver: bridge
+
+volumes:
+  minio-data:
+  clickhouse-data:
+  airflow-postgres-data:
+  airflow-logs:
+  airflow-plugins:
+  grafana-data:

@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    uid: clickhouse-flights
+    access: proxy
+    url: http://clickhouse:8123
+    isDefault: true
+    jsonData:
+      host: clickhouse
+      port: 8123
+      username: default
+      defaultDatabase: flights
+      protocol: http
+      tlsSkipVerify: true
+      dialTimeout: 10
+      queryTimeout: 60
+      validateSql: false
+    secureJsonData:
+      password: ""
+    editable: true
+    version: 2

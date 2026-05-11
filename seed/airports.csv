@@ -1,0 +1,31 @@
+iata,icao,name,latitude,longitude,country
+ATL,KATL,Hartsfield-Jackson Atlanta,33.6407,-84.4277,United States
+PEK,ZBAA,Beijing Capital,40.0799,116.6031,China
+DXB,OMDB,Dubai International,25.2532,55.3657,United Arab Emirates
+LAX,KLAX,Los Angeles International,33.9425,-118.4081,United States
+HND,RJTT,Tokyo Haneda,35.5494,139.7798,Japan
+ORD,KORD,Chicago O'Hare,41.9742,-87.9073,United States
+LHR,EGLL,London Heathrow,51.4700,-0.4543,United Kingdom
+PVG,ZSPD,Shanghai Pudong,31.1443,121.8083,China
+CDG,LFPG,Paris Charles de Gaulle,49.0097,2.5479,France
+DFW,KDFW,Dallas Fort Worth,32.8998,-97.0403,United States
+CAN,ZGGG,Guangzhou Baiyun,23.3924,113.2988,China
+AMS,EHAM,Amsterdam Schiphol,52.3086,4.7639,Netherlands
+FRA,EDDF,Frankfurt am Main,50.0333,8.5706,Germany
+IST,LTFM,Istanbul Airport,41.2753,28.7519,Turkey
+SIN,WSSS,Singapore Changi,1.3502,103.9944,Singapore
+ICN,RKSI,Seoul Incheon,37.4602,126.4407,South Korea
+DEN,KDEN,Denver International,39.8561,-104.6737,United States
+BKK,VTBS,Bangkok Suvarnabhumi,13.6900,100.7501,Thailand
+JFK,KJFK,New York JFK,40.6413,-73.7781,United States
+SFO,KSFO,San Francisco,37.6213,-122.3790,United States
+MAD,LEMD,Madrid Barajas,40.4983,-3.5676,Spain
+FCO,LIRF,Rome Fiumicino,41.8003,12.2389,Italy
+SVO,UUEE,Moscow Sheremetyevo,55.9726,37.4146,Russia
+DME,UUDD,Moscow Domodedovo,55.4088,37.9063,Russia
+GRU,SBGR,Sao Paulo Guarulhos,-23.4356,-46.4731,Brazil
+SYD,YSSY,Sydney Kingsford Smith,-33.9461,151.1772,Australia
+MUC,EDDM,Munich Airport,48.3538,11.7861,Germany
+ZRH,LSZH,Zurich Airport,47.4647,8.5492,Switzerland
+NRT,RJAA,Tokyo Narita,35.7647,140.3864,Japan
+MEX,MMMX,Mexico City Benito Juarez,19.4363,-99.0721,Mexico
